@@ -5,12 +5,7 @@ const path = require("path");
 const { validateUserValue } = require("./validateUserValue");
 const { getTransformStream } = require("./transformStream");
 
-const handlerErrorReadStream = () => {
-  console.error(`Error: input file not exists`);
-  process.exit(1);
-};
-
-const handleErrorStream = (err) => console.error(err);
+const handleErrorStream = (err) => process.exit(1);
 
 const processMessage = (options) => {
   const {
@@ -19,25 +14,55 @@ const processMessage = (options) => {
   } = validateUserValue(options);
 
   if (isValidate) {
-    const inputPath = path.resolve(`${__dirname}/${input}`);
-    const outputPath = path.resolve(`${__dirname}/${output}`);
+    const getReadStream = (input) => {
+      const inputPath = path.resolve(`${__dirname}/${input}`);
 
-    const getReadStream = (input) =>
-      input
-        ? fs.createReadStream(inputPath).on("error", handlerErrorReadStream)
-        : process.stdin;
+      return new Promise((res, rej) => {
+        if (input) {
+          fs.access(inputPath, fs.constants.R_OK, (err) => {
+            if (err) {
+              console.error(
+                `You can't read this input file: ${inputPath} or this file isn't exist`
+              );
+              process.exit(1);
+              rej(err);
+            }
+            res(fs.createReadStream(inputPath));
+          });
+        } else res(process.stdin);
+      });
+    };
 
-    const getOutputStream = (output) =>
-      output
-        ? fs.createWriteStream(outputPath, { flags: "a" })
-        : process.stdout;
+    const getOutputStream = (output) => {
+      const outputPath = path.resolve(`${__dirname}/${output}`);
 
-    pipeline(
-      getReadStream(input),
-      getTransformStream(shift, action),
-      getOutputStream(output),
-      (err) => handleErrorStream(err)
-    );
+      return new Promise((res, rej) => {
+        if (output) {
+          fs.access(outputPath, fs.constants.W_OK, (err) => {
+            if (err) {
+              console.error(
+                `You can't write this output file: ${outputPath} or this file isn't exist`
+              );
+              process.exit(1);
+              rej(err);
+            }
+            res(fs.createWriteStream(outputPath, { flags: "a" }));
+          });
+        } else res(process.stdout);
+      });
+    };
+
+    Promise.all([getReadStream(input), getOutputStream(output)])
+      .then((streamObjects) => {
+        const [readStream, writeStream] = streamObjects;
+        pipeline(
+          readStream,
+          getTransformStream(shift, action),
+          writeStream,
+          (err) => handleErrorStream(err)
+        );
+      })
+      .catch((err) => handleErrorStream(err));
   }
 };
 

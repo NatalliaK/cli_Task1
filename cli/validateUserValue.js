@@ -6,7 +6,7 @@ const errorMessages = {
 };
 
 const handlerValues = {
-  shift: (value) => (typeof +value === "number" && ~~+value) || false, // check the value of the number type and remove fractional part
+  shift: (value) => (typeof +value === "number" ? ~~+value : false), // check the value of the number type and remove fractional part
   action: (value) =>
     value === "encode" ? "encode" : value === "decode" ? "decode" : false,
   input: (value) => (!!~value.lastIndexOf(".txt") ? value : undefined), // if file name exists .txt return filename
@@ -18,7 +18,7 @@ const validateUserValue = (data) => {
   for (let key in data) {
     if (data.hasOwnProperty(key)) {
       let value = handlerValues[key](data[key]);
-      if (!value) {
+      if (value === false || value === undefined) {
         console.error(errorMessages[key]);
         return validateData;
       } else {
